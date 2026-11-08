@@ -23,8 +23,8 @@ nav.modes a{display:flex;align-items:center;justify-content:center;text-align:ce
 nav.modes a.active{background:var(--acc);color:#fff;border-color:var(--acc)}
 nav.modes a.wide{grid-column:1/-1}
 section.mode{margin-top:18px}
-.js section.mode{display:none}
-.js section.mode.shown{display:block}
+.navok section.mode{display:none}
+.navok section.mode.shown{display:block}
 h2{font-size:1.4rem;margin:8px 0 10px;line-height:1.3}
 h3{font-size:1.2rem;margin:22px 0 8px;line-height:1.3}
 h4{font-size:1.05rem;margin:16px 0 6px}
@@ -76,10 +76,10 @@ button{font:inherit}
 .qa .hint{background:var(--warnbg);border-radius:8px;padding:8px 10px;margin:8px 0}
 .qa .ans{background:var(--okbg);border-radius:8px;padding:8px 10px;margin:8px 0}
 .qa .hint b,.qa .ans b.t{display:block;font-size:.85rem;text-transform:uppercase;letter-spacing:.03em}
-.js .qa .hint,.js .qa .ans,.js .qa .grade{display:none}
-.js .qa.h .hint{display:block}
-.js .qa.a .ans,.js .qa.a .hint{display:block}
-.js .qa.a .grade{display:block}
+.boardok .qa .hint,.boardok .qa .ans,.boardok .qa .grade{display:none}
+.boardok .qa.h .hint{display:block}
+.boardok .qa.a .ans,.boardok .qa.a .hint{display:block}
+.boardok .qa.a .grade{display:block}
 .nojs-only{display:block}
 .js .nojs-only{display:none}
 .jsonly{display:none}
@@ -131,7 +131,7 @@ a{color:var(--acc)}
   th,td{padding:6px 5px}
   .diff .pair,.cmp{grid-template-columns:1fr}
 }
-@media print{.js section.mode{display:block}nav.modes,.author-bar,.controls,.grade{display:none}}
+@media print{.navok section.mode{display:block}nav.modes,.author-bar,.controls,.grade{display:none}}
 </style>
 </head>
 <body>
@@ -981,25 +981,48 @@ a{color:var(--acc)}
 
 <script>
 (function(){
-  var sections=[].slice.call(document.querySelectorAll('section.mode'));
-  var links=[].slice.call(document.querySelectorAll('[data-t]'));
-  function show(id,anchor){
-    var found=false;
-    sections.forEach(function(s){var on=s.id===id;s.classList.toggle('shown',on);if(on)found=true;});
-    if(!found){sections[0].classList.add('shown');id=sections[0].id;}
-    document.querySelectorAll('nav.modes a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-t')===id);});
-    var target=anchor?document.getElementById(anchor):null;
-    if(target){target.scrollIntoView({block:'start'});}
-    else{var nav=document.querySelector('nav.modes');window.scrollTo(0,nav.offsetTop+nav.offsetHeight-4);}
-  }
-  links.forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();var t=a.getAttribute('data-t');show(t);try{history.replaceState(null,'','#'+t);}catch(_){} });});
-  // in-page chips
-  document.querySelectorAll('.chips a').forEach(function(a){a.addEventListener('click',function(e){var id=a.getAttribute('href').slice(1);var el=document.getElementById(id);if(el){e.preventDefault();el.scrollIntoView({block:'start'});}});});
-  var h=(location.hash||'').slice(1);
-  var el=h?document.getElementById(h):null;
-  if(el){var sec=el.closest('section.mode');show(sec?sec.id:'home',sec&&sec.id!==h?h:null);}else{sections.forEach(function(s){s.classList.toggle('shown',s.id==='home');});document.querySelector('nav.modes a[data-t="home"]').classList.add('active');}
+  var root=document.documentElement;
+  if(window.NodeList&&!NodeList.prototype.forEach){NodeList.prototype.forEach=Array.prototype.forEach;}
+  function addC(el,c){if(el.classList)el.classList.add(c);else if((' '+el.className+' ').indexOf(' '+c+' ')<0)el.className+=' '+c;}
+  function remC(el,c){if(el.classList)el.classList.remove(c);else el.className=(' '+el.className+' ').replace(' '+c+' ',' ');}
+  function setC(el,c,on){if(on)addC(el,c);else remC(el,c);}
+  function sectionOf(el){while(el&&el!==document.body){if(el.tagName==='SECTION'&&/(^| )mode( |$)/.test(el.className))return el;el=el.parentNode;}return null;}
+  // ---------- navigation ----------
+  try{
+    var sections=[].slice.call(document.querySelectorAll('section.mode'));
+    var navLinks=[].slice.call(document.querySelectorAll('nav.modes a'));
+    var showSection=function(id,anchor){
+      var target=null;
+      for(var i=0;i<sections.length;i++){var on=sections[i].id===id;setC(sections[i],'shown',on);if(on)target=sections[i];}
+      if(!target){target=sections[0];addC(target,'shown');id=target.id;}
+      for(var j=0;j<navLinks.length;j++){setC(navLinks[j],'active',navLinks[j].getAttribute('data-t')===id);}
+      var a=anchor?document.getElementById(anchor):null;
+      if(a&&a!==target){a.scrollIntoView(true);}
+      else{var nav=document.querySelector('nav.modes');window.scrollTo(0,nav.offsetTop+nav.offsetHeight-4);}
+    };
+    var route=function(first){
+      var h='';try{h=decodeURIComponent((location.hash||'').slice(1));}catch(_){h=(location.hash||'').slice(1);}
+      var el=h?document.getElementById(h):null;
+      var sec=el?sectionOf(el):null;
+      if(!sec){
+        for(var i=0;i<sections.length;i++)setC(sections[i],'shown',sections[i].id==='home');
+        for(var j=0;j<navLinks.length;j++)setC(navLinks[j],'active',navLinks[j].getAttribute('data-t')==='home');
+        if(!first)window.scrollTo(0,0);
+        return;
+      }
+      showSection(sec.id,h);
+    };
+    addC(root,'navok');
+    window.addEventListener('hashchange',function(){route(false);});
+    // если адрес уже совпадает с кнопкой, hashchange не сработает — показываем сами
+    var all=[].slice.call(document.querySelectorAll('a[href^="#"]'));
+    for(var k=0;k<all.length;k++){(function(a){a.addEventListener('click',function(){
+      if(location.hash===a.getAttribute('href')){setTimeout(function(){route(false);},0);}
+    });})(all[k]);}
+    route(true);
+  }catch(err){remC(root,'navok');}
 
-  // ---------- timer ----------
+  try{ // timer
   var t0=null,acc=0,iv=null,clock=document.getElementById('clock'),bs=document.getElementById('tStart'),hint=document.getElementById('tHint');
   function fmt(s){var m=Math.floor(s/60),x=s%60;return (m<10?'0':'')+m+':'+(x<10?'0':'')+x;}
   function stage(s){if(s<180)return'Сейчас: § 11';if(s<360)return'Сейчас: § 12';if(s<540)return'Сейчас: § 13';if(s<600)return'Сейчас: итоговая проверка';return'10 минут прошло — можно продолжать сколько нужно.';}
@@ -1007,7 +1030,8 @@ a{color:var(--acc)}
   bs.addEventListener('click',function(){if(iv){acc+=Date.now()-t0;t0=null;clearInterval(iv);iv=null;bs.textContent='Продолжить';}else{t0=Date.now();iv=setInterval(tick,1000);tick();bs.textContent='Пауза';}});
   document.getElementById('tReset').addEventListener('click',function(){clearInterval(iv);iv=null;t0=null;acc=0;clock.textContent='00:00';bs.textContent='Запустить секундомер';hint.textContent='Секундомер необязателен.';});
 
-  // ---------- board ----------
+  }catch(e){}
+  try{ // board
   var qas=[].slice.call(document.querySelectorAll('#boardList .qa'));
   var tally=document.getElementById('tally');
   var onlyBtn=document.getElementById('onlyRepeat'),onlyMode=false;
@@ -1024,15 +1048,17 @@ a{color:var(--acc)}
     g.appendChild(bK);g.appendChild(bR);g.appendChild(m);
     q.appendChild(c);q.appendChild(g);
     bH.addEventListener('click',function(){q.classList.add('h');bH.disabled=true;});
-    bA.addEventListener('click',function(){q.classList.add('h','a');bH.disabled=true;bA.disabled=true;var a=q.querySelector('.ans');a.setAttribute('tabindex','-1');a.focus({preventScroll:true});a.scrollIntoView({block:'nearest'});});
+    bA.addEventListener('click',function(){addC(q,'h');addC(q,'a');bH.disabled=true;bA.disabled=true;var a=q.querySelector('.ans');a.setAttribute('tabindex','-1');a.focus({preventScroll:true});a.scrollIntoView({block:'nearest'});});
     bK.addEventListener('click',function(){q.classList.remove('repeat');q.classList.add('known');m.textContent='✓ знала';upd();if(onlyMode)q.style.display='none';});
     bR.addEventListener('click',function(){q.classList.remove('known');q.classList.add('repeat');m.textContent='↻ повторить';upd();});
   });
   onlyBtn.addEventListener('click',function(){onlyMode=!onlyMode;qas.forEach(function(q){q.style.display=(onlyMode&&!q.classList.contains('repeat'))?'none':'';});document.querySelectorAll('#boardList h3').forEach(function(h){h.style.display=onlyMode?'none':'';});onlyBtn.textContent=onlyMode?'Показать все вопросы':'Показать только «повторить»';
     if(onlyMode&&!document.querySelector('#boardList .qa.repeat')){alert('Пока нет вопросов с отметкой «Нужно повторить».');}});
-  document.getElementById('resetBoard').addEventListener('click',function(){qas.forEach(function(q){q.classList.remove('h','a','known','repeat');q.style.display='';q.querySelectorAll('.controls button').forEach(function(b){b.disabled=false;});q.querySelector('.mark').textContent='';});onlyMode=false;onlyBtn.textContent='Показать только «повторить»';document.querySelectorAll('#boardList h3').forEach(function(h){h.style.display='';});upd();});
+  document.getElementById('resetBoard').addEventListener('click',function(){qas.forEach(function(q){remC(q,'h');remC(q,'a');remC(q,'known');remC(q,'repeat');q.style.display='';q.querySelectorAll('.controls button').forEach(function(b){b.disabled=false;});q.querySelector('.mark').textContent='';});onlyMode=false;onlyBtn.textContent='Показать только «повторить»';document.querySelectorAll('#boardList h3').forEach(function(h){h.style.display='';});upd();});
 
-  // ---------- quiz ----------
+  addC(root,'boardok');
+  }catch(e){remC(root,'boardok');}
+  try{ // quiz
   var Q=[
    {p:'§ 11',topic:'Акт о супрематии (§ 11)',q:'Когда был принят Акт о супрематии?',o:['1534 г.','1485 г.','1588 г.','1603 г.'],e:'В 1534 г. парламент принял Акт о супрематии: король стал главой англиканской церкви.',w:['','1485 — конец войны Алой и Белой розы, к власти пришли Тюдоры.','1588 — разгром Непобедимой армады.','1603 — к власти пришли Стюарты.']},
    {p:'§ 11',topic:'Причины Реформации в Англии (§ 11)',q:'Почему Генрих VIII порвал с папой римским?',o:['Папа не разрешил ему развод с Екатериной Арагонской','Папа поддержал восстание в Шотландии','Король хотел вернуть католичество','Парламент потребовал создать республику'],e:'Главной причиной стала «династическая проблема»: королю нужен был наследник, а папа запретил развод.',w:['','С Шотландией это не связано.','Наоборот — он отделил церковь от Рима. Вернуть католичество пыталась Мария Тюдор.','Республики в Англии тогда не было и речи; она появится только в 1649 г.']},
@@ -1095,6 +1121,7 @@ a{color:var(--acc)}
   document.getElementById('quizFinish').addEventListener('click',finish);
   document.getElementById('quizRestart').addEventListener('click',function(){render(Q.map(function(_,i){return i;}));box.scrollIntoView({block:'start'});});
   render(Q.map(function(_,i){return i;}));
+  }catch(e){var qb=document.getElementById('quizBox');if(qb)qb.innerHTML='<p class="note">Тест не запустился в этом браузере. Попробуй открыть файл в Chrome или Safari.</p>';}
 })();
 </script>
 
